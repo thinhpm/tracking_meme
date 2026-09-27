@@ -12,7 +12,13 @@ HELP_TEXT = (
     "📡 *Volume Alert*\n"
     "`/alert on` — Bật thông báo token volume cao mỗi 5 phút\n"
     "`/alert off` — Tắt thông báo\n"
-    "`/alert` — Xem trạng thái"
+    "`/alert` — Xem trạng thái\n\n"
+    "🏆 *Fomo Leaderboard Alert*\n"
+    "`/fomo on` — Bật alert top trader fomo.family\n"
+    "`/fomo off` — Tắt alert\n"
+    "`/fomo top` — Xem top 10 leaderboard ngay\n"
+    "`/fomo token <jwt>` — Cập nhật Privy token\n"
+    "`/fomo` — Xem trạng thái"
 )
 
 

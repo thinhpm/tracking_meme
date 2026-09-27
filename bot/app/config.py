@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str
     api_base_url: str = "http://api:8000"
     log_level: str = "info"
+    fomo_token: str = ""
 
 
 @lru_cache
