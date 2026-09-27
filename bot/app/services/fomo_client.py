@@ -95,7 +95,7 @@ class FomoClient:
             return []
 
         traders: list[Trader] = []
-        for rank, item in enumerate(raw, 1):
+        for rank, item in enumerate(raw[:limit], 1):
             holdings = [
                 TraderHolding(
                     token_address=h.get("tokenAddress", ""),
