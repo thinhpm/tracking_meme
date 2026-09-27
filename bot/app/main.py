@@ -8,6 +8,7 @@ from app.handlers.commands import help_command, start
 from app.handlers.fomo import fomo_command
 from app.handlers.message import handle_message
 from app.jobs.fomo_leaderboard_alert import fomo_leaderboard_alert_job
+from app.jobs.fomo_watching_alert import fomo_watching_alert_job
 from app.jobs.volume_alert import volume_alert_job
 from app.services.fomo_client import FomoClient
 
@@ -42,6 +43,11 @@ def main() -> None:
             fomo_leaderboard_alert_job,
             interval=_FOMO_ALERT_INTERVAL,
             first=30,
+        )
+        app.job_queue.run_repeating(
+            fomo_watching_alert_job,
+            interval=_FOMO_ALERT_INTERVAL,
+            first=60,
         )
 
     app.run_polling()

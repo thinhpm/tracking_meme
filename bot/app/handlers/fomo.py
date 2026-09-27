@@ -6,6 +6,7 @@ Commands:
   /fomo off           — unsubscribe this chat
   /fomo token <jwt>   — update Privy auth token
   /fomo top           — show current top 10 leaderboard
+  /fomo watching      — show accounts being followed
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from app.services.fomo_client import FomoClient, FomoTokenExpiredError
+from app.services.fomo_client import FomoClient, FomoTokenExpiredError, FollowedTrader
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +141,41 @@ async def fomo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
         await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
+    elif action == "watching":
+        if _fomo_client is None:
+            await update.message.reply_text(
+                "⚠️ Chưa có token. Dùng `/fomo token <jwt>`", parse_mode="Markdown"
+            )
+            return
+        await update.message.reply_text("🔍 Đang tải danh sách following...")
+        try:
+            following_list: list[FollowedTrader] = await _fomo_client.get_following()
+        except FomoTokenExpiredError:
+            await update.message.reply_text(
+                "⚠️ Token hết hạn. Dùng `/fomo token <jwt>` để cập nhật.",
+                parse_mode="Markdown",
+            )
+            return
+        except Exception:
+            logger.exception("fomo.watching_command.error")
+            await update.message.reply_text("❌ Lỗi khi tải following.")
+            return
+
+        if not following_list:
+            await update.message.reply_text("Chưa follow ai trên fomo.family.")
+            return
+
+        lines = [f"👀 *Đang following ({len(following_list)} người)*\n"]
+        for tr in following_list:
+            profile = f"https://fomo.family/{tr.user_handle}"
+            lines.append(
+                f"• [{tr.display_name}]({profile})\n"
+                f"  💰 {_fmt_usd(tr.total_pnl)} PnL | 📊 {tr.num_trades:,} trades | 👥 {tr.followers:,} followers"
+            )
+        lines.append("\n_Bot sẽ notify khi họ giao dịch._")
+        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
     else:
         await update.message.reply_text(
-            "Cú pháp: `/fomo on|off|token|top`", parse_mode="Markdown"
+            "Cú pháp: `/fomo on|off|token|top|watching`", parse_mode="Markdown"
         )

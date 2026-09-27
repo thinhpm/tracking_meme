@@ -38,6 +38,36 @@ class Trader(NamedTuple):
     rank: int  # 1-indexed position in leaderboard response
 
 
+_NETWORK_NAMES: dict[int, str] = {
+    1: "ETH",
+    56: "BSC",
+    8453: "Base",
+    42161: "ARB",
+    1399811149: "SOL",
+    4663: "Monad",
+}
+
+
+class TradeActivity(NamedTuple):
+    id: str
+    token_symbol: str
+    token_address: str
+    network_id: int
+    usd_amount: float
+    trade_type: str  # DEPOSIT=buy, WITHDRAWAL=sell
+    created_at: str  # ISO timestamp
+
+
+class FollowedTrader(NamedTuple):
+    id: str
+    user_handle: str
+    display_name: str
+    total_pnl: float
+    num_trades: int
+    total_volume: float
+    followers: int
+
+
 class FomoTokenExpiredError(Exception):
     pass
 
@@ -122,3 +152,72 @@ class FomoClient:
                 )
             )
         return traders
+
+    async def get_following(self) -> list[FollowedTrader]:
+        if self.is_token_expired():
+            raise FomoTokenExpiredError("Privy token expired")
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                r = await client.get(f"{_BASE_URL}/v2/leaderboard/following", headers=self._headers())
+        except httpx.RequestError as exc:
+            logger.error("fomo.following.request_error", extra={"error": str(exc)})
+            return []
+        if r.status_code == 401:
+            raise FomoTokenExpiredError("API returned 401 unauthorized")
+        if r.status_code != 200:
+            return []
+        try:
+            users = r.json().get("responseObject", {}).get("users", [])
+        except Exception:
+            return []
+        result: list[FollowedTrader] = []
+        for u in users:
+            result.append(
+                FollowedTrader(
+                    id=u.get("id", ""),
+                    user_handle=u.get("userHandle", ""),
+                    display_name=u.get("displayName", ""),
+                    total_pnl=float(u.get("totalPnL") or 0),
+                    num_trades=int(u.get("numTrades") or 0),
+                    total_volume=float(u.get("totalVolume") or 0),
+                    followers=int(u.get("followers") or 0),
+                )
+            )
+        return result
+
+    async def get_user_activity(self, user_id: str, limit: int = 10) -> list[TradeActivity]:
+        if self.is_token_expired():
+            raise FomoTokenExpiredError("Privy token expired")
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                r = await client.get(
+                    f"{_BASE_URL}/v2/users/{user_id}/activity",
+                    headers=self._headers(),
+                    params={"limit": limit},
+                )
+        except httpx.RequestError as exc:
+            logger.error("fomo.activity.request_error", extra={"error": str(exc), "user_id": user_id})
+            return []
+        if r.status_code == 401:
+            raise FomoTokenExpiredError("API returned 401 unauthorized")
+        if r.status_code != 200:
+            return []
+        try:
+            activities = r.json().get("responseObject", {}).get("activities", [])
+        except Exception:
+            return []
+        result: list[TradeActivity] = []
+        for a in activities:
+            meta = a.get("tokenMetadata") or {}
+            result.append(
+                TradeActivity(
+                    id=a.get("id", ""),
+                    token_symbol=meta.get("symbol", ""),
+                    token_address=a.get("tokenAddress", ""),
+                    network_id=int(a.get("networkId") or 0),
+                    usd_amount=float(a.get("usdAmount") or 0),
+                    trade_type=a.get("type", ""),
+                    created_at=a.get("createdAt", ""),
+                )
+            )
+        return result

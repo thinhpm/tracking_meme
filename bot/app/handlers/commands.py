@@ -17,6 +17,7 @@ HELP_TEXT = (
     "`/fomo on` — Bật alert top trader fomo.family\n"
     "`/fomo off` — Tắt alert\n"
     "`/fomo top` — Xem top 10 leaderboard ngay\n"
+    "`/fomo watching` — Xem danh sách đang follow + notify trade mới\n"
     "`/fomo token <jwt>` — Cập nhật Privy token\n"
     "`/fomo` — Xem trạng thái"
 )
