@@ -7,10 +7,13 @@ from app.handlers.alert import alert_command
 from app.handlers.commands import help_command, start
 from app.handlers.fomo import fomo_command
 from app.handlers.message import handle_message
+from app.handlers.wallet import wallet_command
 from app.jobs.fomo_leaderboard_alert import fomo_leaderboard_alert_job
 from app.jobs.fomo_watching_alert import fomo_watching_alert_job
 from app.jobs.volume_alert import volume_alert_job
+from app.jobs.wallet_tracking_job import wallet_tracking_job
 from app.services.fomo_client import FomoClient
+from app.services.zerion_client import ZerionClient
 
 logging.basicConfig(level=logging.INFO)
 
@@ -27,10 +30,16 @@ def main() -> None:
         import app.handlers.fomo as _fomo_handler
         _fomo_handler._fomo_client = FomoClient(settings.fomo_token)
 
+    # Pre-load zerion client
+    if settings.zerion_api_key:
+        import app.handlers.wallet as _wallet_handler
+        _wallet_handler._zerion_client = ZerionClient(settings.zerion_api_key)
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("alert", alert_command))
     app.add_handler(CommandHandler("fomo", fomo_command))
+    app.add_handler(CommandHandler("wallet", wallet_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     if app.job_queue:
@@ -48,6 +57,11 @@ def main() -> None:
             fomo_watching_alert_job,
             interval=_FOMO_ALERT_INTERVAL,
             first=60,
+        )
+        app.job_queue.run_repeating(
+            wallet_tracking_job,
+            interval=_FOMO_ALERT_INTERVAL,
+            first=90,
         )
 
     app.run_polling()

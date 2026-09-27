@@ -131,7 +131,7 @@ async def fomo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         for t in traders:
             holdings_str = ""
             if t.top_holdings:
-                addrs = [h.token_address[:8] + "…" for h in t.top_holdings[:2]]
+                addrs = [h.token_address for h in t.top_holdings[:2]]
                 holdings_str = f" | 🪙 {', '.join(f'`{a}`' for a in addrs)}"
             profile = f"https://fomo.family/{t.user_handle}"
             lines.append(

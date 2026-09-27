@@ -37,8 +37,7 @@ def _build_new_entry_msg(trader: Trader) -> str:
     if trader.top_holdings:
         lines = []
         for h in trader.top_holdings:
-            addr_short = h.token_address[:8] + "..." if len(h.token_address) > 8 else h.token_address
-            lines.append(f"  • `{addr_short}` — val: {_fmt_usd(h.value_usd)} | pnl: {_fmt_usd(h.pnl_usd)}")
+            lines.append(f"  • `{h.token_address}` — val: {_fmt_usd(h.value_usd)} | pnl: {_fmt_usd(h.pnl_usd)}")
         holdings_lines = "\n" + "\n".join(lines)
 
     return (
@@ -65,8 +64,7 @@ def _build_new_holding_msg(trader: Trader, new_addrs: set[str]) -> str:
     lines = []
     for h in trader.top_holdings:
         if h.token_address in new_addrs:
-            addr_short = h.token_address[:8] + "..." if len(h.token_address) > 8 else h.token_address
-            lines.append(f"  • `{addr_short}` — val: {_fmt_usd(h.value_usd)} | pnl: {_fmt_usd(h.pnl_usd)}")
+            lines.append(f"  • `{h.token_address}` — val: {_fmt_usd(h.value_usd)} | pnl: {_fmt_usd(h.pnl_usd)}")
 
     return (
         f"🆕 *Top trader thêm holding mới — Fomo*\n\n"

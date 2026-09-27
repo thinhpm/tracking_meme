@@ -19,7 +19,13 @@ HELP_TEXT = (
     "`/fomo top` — Xem top 10 leaderboard ngay\n"
     "`/fomo watching` — Xem danh sách đang follow + notify trade mới\n"
     "`/fomo token <jwt>` — Cập nhật Privy token\n"
-    "`/fomo` — Xem trạng thái"
+    "`/fomo` — Xem trạng thái\n\n"
+    "🔍 *Wallet Tracker (Zerion)*\n"
+    "`/wallet <addr>` — Portfolio overview\n"
+    "`/wallet txs <addr>` — Lịch sử giao dịch\n"
+    "`/wallet track <addr>` — Theo dõi ví (notify trade mới)\n"
+    "`/wallet untrack <addr>` — Bỏ theo dõi\n"
+    "`/wallet list` — Danh sách ví đang theo dõi"
 )
 
 

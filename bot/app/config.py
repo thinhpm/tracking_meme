@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     api_base_url: str = "http://api:8000"
     log_level: str = "info"
     fomo_token: str = ""
+    zerion_api_key: str = ""
 
 
 @lru_cache
