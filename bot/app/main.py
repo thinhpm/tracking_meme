@@ -1,6 +1,7 @@
 import logging
 
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.request import HTTPXRequest
 
 from app.config import get_settings
 from app.handlers.alert import alert_command
@@ -23,7 +24,27 @@ _FOMO_ALERT_INTERVAL = 300  # 5 minutes
 
 def main() -> None:
     settings = get_settings()
-    app = Application.builder().token(settings.telegram_bot_token).build()
+    request = HTTPXRequest(
+        connection_pool_size=20,
+        pool_timeout=20.0,
+        connect_timeout=30.0,
+        read_timeout=30.0,
+        write_timeout=30.0,
+    )
+    get_updates_request = HTTPXRequest(
+        connection_pool_size=5,
+        pool_timeout=20.0,
+        connect_timeout=30.0,
+        read_timeout=30.0,
+        write_timeout=30.0,
+    )
+    app = (
+        Application.builder()
+        .token(settings.telegram_bot_token)
+        .request(request)
+        .get_updates_request(get_updates_request)
+        .build()
+    )
 
     # Pre-load fomo client from env token if provided
     if settings.fomo_token:

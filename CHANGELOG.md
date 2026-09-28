@@ -10,6 +10,41 @@ Format: [Semantic Versioning](https://semver.org/). Dates in `YYYY-MM-DD`.
 
 ---
 
+## [0.6.0] — 2026-09-28
+
+### Added — LLM Gemini Service Integration
+
+- **`GeminiClient`** (`api/app/services/gemini_client.py`)
+  - Client bất đồng bộ kết nối tới centralized LLM Gateway service (`POST {url}/prompt`)
+  - Tự động lọc bỏ thẻ reasoning `<think>...</think>`, markdown code fences (` ```json `), và bóc tách JSON object
+  - Tự động retry với exponential backoff khi gặp lỗi 502 / network
+  - Hỗ trợ tuỳ biến `provider`, `model`, `effort`, `timeout`
+- **Multi-provider `AnalysisService`** (`api/app/services/analysis_service.py`)
+  - Tự động định tuyến: sử dụng Claude Haiku nếu có `ANTHROPIC_API_KEY`; tự động chuyển sang `GeminiClient` nếu để trống `ANTHROPIC_API_KEY`
+  - Dự phòng an toàn: tự động fallback về `heuristic_analysis` nếu LLM gặp sự cố
+- **Config & Dependency Injection** (`api/app/config.py`, `api/app/routes/token.py`)
+  - Chuyển `anthropic_api_key` thành optional (mặc định `""`)
+  - Thêm cấu hình `gemini_service_url`, `gemini_service_provider`, `gemini_service_model`
+  - Route token search tự động inject `GeminiClient` khi không có Anthropic key
+
+### Added — Production Deployment (Raspberry Pi)
+
+- **Dedicated Production Services** (`docker-compose.yml`)
+  - Bổ sung `api-prod` và `bot-prod` dành riêng cho môi trường deploy Pi / Server
+  - Giao tiếp nội bộ không cần map port API ra ngoài host
+  - `extra_hosts: ["host.docker.internal:host-gateway"]` kết nối tới Gemini Gateway service trên host Pi
+  - DNS ổn định (`8.8.8.8`, `1.1.1.1`) và log rotation (`10m`, max 3 files) chống đầy thẻ nhớ SD
+
+### Fixed — Telegram Bot Connection Pool & Timeouts
+
+- **`HTTPXRequest` Connection Pooling** (`bot/app/main.py`)
+  - Tách riêng `request` và `get_updates_request` tránh xung đột giữa long-polling và gửi tin nhắn
+  - Tăng `connection_pool_size=20`, `pool_timeout=20.0s`, `connect_timeout=30.0s`, `read_timeout=30.0s` khắc phục lỗi `telegram.error.TimedOut: Pool timeout`
+- **Dependencies** (`api/requirements.txt`, `bot/requirements.txt`)
+  - Cập nhật `respx==0.23.1` tương thích hoàn toàn với `httpx 0.28.1`
+
+---
+
 ## [0.5.0] — 2026-09-27
 
 ### Added — Zerion Wallet Tracker
@@ -120,7 +155,8 @@ Format: [Semantic Versioning](https://semver.org/). Dates in `YYYY-MM-DD`.
 
 ---
 
-[Unreleased]: https://github.com/tqhoa/bot-meme/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/tqhoa/bot-meme/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/tqhoa/bot-meme/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/tqhoa/bot-meme/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/tqhoa/bot-meme/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/tqhoa/bot-meme/compare/v0.2.0...v0.3.0

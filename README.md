@@ -14,6 +14,7 @@ Hai service chạy Docker Compose. Bot gọi API qua HTTP nội bộ (`http://ap
 
 ```
 Telegram → Bot → FastAPI → DexScreener / GmGn / GoPlus
+                FastAPI → LLM Analysis (Gemini Gateway Service / Claude)
                 Bot → fomo.family API (Privy JWT)
                 Bot → Zerion API (Basic Auth)
 ```
@@ -26,6 +27,7 @@ Telegram → Bot → FastAPI → DexScreener / GmGn / GoPlus
 | HTTP client | httpx (async) |
 | Config | pydantic-settings |
 | API framework | FastAPI + uvicorn |
+| LLM Analysis | Gemini Gateway Service (mặc định) / Anthropic Claude |
 | Container | Docker Compose |
 
 ## Quick Start
@@ -41,16 +43,39 @@ docker compose logs -f bot
 
 ```env
 # API service
-ANTHROPIC_API_KEY=sk-ant-...
-GOPLUS_API_KEY=               # optional — free tier nếu để trống
+ANTHROPIC_API_KEY=               # optional — nếu để trống sẽ tự động dùng Gemini service
+GEMINI_SERVICE_URL=http://localhost:8000 # LLM Gateway URL
+GEMINI_SERVICE_PROVIDER=ninerouter       # optional — e.g. ninerouter, openrouter
+GEMINI_SERVICE_MODEL=groq-cli            # optional — e.g. groq-cli, gemini-2.5-flash
+GOPLUS_API_KEY=                  # optional — free tier nếu để trống
 LOG_LEVEL=info
 ENVIRONMENT=development
 
 # Bot service
-TELEGRAM_BOT_TOKEN=...        # BotFather token
+TELEGRAM_BOT_TOKEN=...           # BotFather token
 API_BASE_URL=http://api:8000
-ZERION_API_KEY=               # từ app.zerion.io/developer
-FOMO_TOKEN=                   # Privy JWT từ fomo.family (1 giờ / lần)
+ZERION_API_KEY=                  # từ app.zerion.io/developer
+FOMO_TOKEN=                      # Privy JWT từ fomo.family (1 giờ / lần)
+```
+
+---
+
+## Deploy Production (Raspberry Pi)
+
+Cấu hình `docker-compose.yml` có sẵn 2 service riêng (`api-prod`, `bot-prod`) tối ưu cho Raspberry Pi / Production server:
+- Không map port API ra ngoài host (chỉ giao tiếp nội bộ container).
+- Tự động map `host.docker.internal` để kết nối tới Gemini Gateway service chạy trên host Pi (`http://host.docker.internal:8000`).
+- Cấu hình DNS (`8.8.8.8`, `1.1.1.1`) và log rotation (`10m`) tránh tràn thẻ nhớ SD.
+
+```bash
+# Khởi chạy trên Pi
+docker compose up -d --build api-prod bot-prod
+
+# Xem logs
+docker compose logs -f api-prod bot-prod
+
+# Dừng service
+docker compose stop api-prod bot-prod
 ```
 
 ---
@@ -66,7 +91,7 @@ Gửi địa chỉ contract EVM bất kỳ (hoặc kèm text), bot tra cứu và
 Kiểm tra token này: 0xA0b86991...
 ```
 
-**Dữ liệu trả về:** tên, symbol, price, market cap, volume 24h, liquidity, security score (GoPlus), holders, top traders (GmGn), DexScreener links.
+**Dữ liệu trả về:** tên, symbol, price, market cap, volume 24h, liquidity, security score (GoPlus), holders, top traders (GmGn), DexScreener links, phân tích rủi ro bằng AI (Gemini/Claude).
 
 Hỗ trợ: Ethereum, BSC.
 
