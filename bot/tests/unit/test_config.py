@@ -12,7 +12,7 @@ def test_settings_defaults(monkeypatch):
     monkeypatch.delenv("FOMO_AUTO_REFRESH_ENABLED", raising=False)
     monkeypatch.delenv("FOMO_REFRESH_INTERVAL_MINUTES", raising=False)
 
-    settings = Settings()
+    settings = Settings(_env_file=None)
     assert settings.telegram_bot_token == "mock_token"
     assert settings.mongodb_uri == "mongodb://localhost:27017"
     assert settings.mongodb_db_name == "tracking_meme"
