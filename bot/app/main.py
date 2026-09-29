@@ -10,6 +10,7 @@ from app.handlers.fomo import fomo_command
 from app.handlers.message import handle_message
 from app.handlers.wallet import wallet_command
 from app.jobs.fomo_leaderboard_alert import fomo_leaderboard_alert_job
+from app.jobs.fomo_token_refresh import fomo_token_monitor_job
 from app.jobs.fomo_watching_alert import fomo_watching_alert_job
 from app.jobs.volume_alert import volume_alert_job
 from app.jobs.wallet_tracking_job import wallet_tracking_job
@@ -20,6 +21,7 @@ logging.basicConfig(level=logging.INFO)
 
 _VOLUME_ALERT_INTERVAL = 300  # 5 minutes
 _FOMO_ALERT_INTERVAL = 300  # 5 minutes
+_TOKEN_MONITOR_INTERVAL = 300  # 5 minutes
 
 
 def main() -> None:
@@ -83,6 +85,11 @@ def main() -> None:
             wallet_tracking_job,
             interval=_FOMO_ALERT_INTERVAL,
             first=90,
+        )
+        app.job_queue.run_repeating(
+            fomo_token_monitor_job,
+            interval=_TOKEN_MONITOR_INTERVAL,
+            first=15,
         )
 
     app.run_polling()

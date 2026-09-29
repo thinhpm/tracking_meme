@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     solana_ws_url: str = ""
     fomo_auto_refresh_enabled: bool = True
     fomo_refresh_interval_minutes: int = 45
+    admin_chat_id: str = ""
 
 
 @lru_cache

@@ -11,6 +11,7 @@ def test_settings_defaults(monkeypatch):
     monkeypatch.delenv("SOLANA_WS_URL", raising=False)
     monkeypatch.delenv("FOMO_AUTO_REFRESH_ENABLED", raising=False)
     monkeypatch.delenv("FOMO_REFRESH_INTERVAL_MINUTES", raising=False)
+    monkeypatch.delenv("ADMIN_CHAT_ID", raising=False)
 
     settings = Settings(_env_file=None)
     assert settings.telegram_bot_token == "mock_token"
@@ -20,6 +21,7 @@ def test_settings_defaults(monkeypatch):
     assert settings.solana_ws_url == ""
     assert settings.fomo_auto_refresh_enabled is True
     assert settings.fomo_refresh_interval_minutes == 45
+    assert settings.admin_chat_id == ""
 
 
 def test_settings_custom_env(monkeypatch):
@@ -30,6 +32,7 @@ def test_settings_custom_env(monkeypatch):
     monkeypatch.setenv("SOLANA_WS_URL", "wss://custom-solana-ws.com")
     monkeypatch.setenv("FOMO_AUTO_REFRESH_ENABLED", "false")
     monkeypatch.setenv("FOMO_REFRESH_INTERVAL_MINUTES", "30")
+    monkeypatch.setenv("ADMIN_CHAT_ID", "99887766")
 
     settings = Settings()
     assert settings.mongodb_uri == "mongodb://custom_host:27018"
@@ -38,3 +41,4 @@ def test_settings_custom_env(monkeypatch):
     assert settings.solana_ws_url == "wss://custom-solana-ws.com"
     assert settings.fomo_auto_refresh_enabled is False
     assert settings.fomo_refresh_interval_minutes == 30
+    assert settings.admin_chat_id == "99887766"
