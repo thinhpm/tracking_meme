@@ -1,9 +1,9 @@
-"""HTTP client for prod-api.fomo.family."""
-from __future__ import annotations
-
+import base64
+import json
 import logging
+from pathlib import Path
 import time
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import httpx
 
@@ -72,13 +72,87 @@ class FomoTokenExpiredError(Exception):
     pass
 
 
-class FomoClient:
-    def __init__(self, token: str) -> None:
-        self._token = token
+class FomoTokenProvider:
+    """Manages Fomo auth tokens with MongoDB cache, local file, and env fallback."""
 
-    def _headers(self) -> dict[str, str]:
+    def __init__(
+        self,
+        db: Any | None = None,
+        session_file: str | None = None,
+        fallback_token: str | None = None,
+    ) -> None:
+        self._db = db
+        self._session_file = session_file
+        self._fallback_token = fallback_token
+        self._cached_token: str | None = None
+
+    @staticmethod
+    def is_jwt_expired(token: str, skew_seconds: int = 60) -> bool:
+        if not token or not isinstance(token, str):
+            return True
+        try:
+            parts = token.split(".")
+            if len(parts) != 3:
+                return True
+            payload = parts[1]
+            padded = payload + "=" * (-len(payload) % 4)
+            data = json.loads(base64.urlsafe_b64decode(padded.encode("utf-8")))
+            exp = data.get("exp", 0)
+            return time.time() + skew_seconds >= exp
+        except Exception:
+            return True
+
+    async def get_token(self) -> str:
+        # 1. Check MongoDB
+        if self._db is not None:
+            try:
+                doc = await self._db["fomo_sessions"].find_one({"_id": "current"})
+                if doc:
+                    token = doc.get("access_token")
+                    if token and not self.is_jwt_expired(token):
+                        self._cached_token = token
+                        return token
+            except Exception as e:
+                logger.warning("fomo.token_provider.db_error", extra={"error": str(e)})
+
+        # 2. Check session_file
+        if self._session_file:
+            path = Path(self._session_file)
+            if path.exists() and path.is_file():
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                    token = data.get("access_token") or data.get("token")
+                    if token and not self.is_jwt_expired(token):
+                        self._cached_token = token
+                        return token
+                except Exception as e:
+                    logger.warning("fomo.token_provider.file_error", extra={"error": str(e)})
+
+        # 3. Check fallback_token
+        if self._fallback_token and not self.is_jwt_expired(self._fallback_token):
+            self._cached_token = self._fallback_token
+            return self._fallback_token
+
+        raise FomoTokenExpiredError(
+            "No valid Fomo session token found (MongoDB, file, and env fallback all expired or missing)"
+        )
+
+
+class FomoClient:
+    def __init__(self, token_or_provider: str | FomoTokenProvider) -> None:
+        if isinstance(token_or_provider, FomoTokenProvider):
+            self._provider = token_or_provider
+        else:
+            self._provider = FomoTokenProvider(fallback_token=token_or_provider)
+
+    @property
+    def provider(self) -> FomoTokenProvider:
+        return self._provider
+
+    async def _headers(self) -> dict[str, str]:
+        token = await self._provider.get_token()
         return {
-            "Authorization": f"Bearer {self._token}",
+            "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
             "X-Supported-Chains": "ethereum,bsc,solana,base,arbitrum",
             "App-Language": "en",
@@ -88,25 +162,18 @@ class FomoClient:
         }
 
     def is_token_expired(self) -> bool:
-        try:
-            import base64, json as _json
-            parts = self._token.split(".")
-            if len(parts) != 3:
-                return True
-            payload = parts[1] + "=" * (4 - len(parts[1]) % 4)
-            data = _json.loads(base64.b64decode(payload))
-            return time.time() > data.get("exp", 0)
-        except Exception:
-            return True
+        if self._provider._cached_token and not self._provider.is_jwt_expired(self._provider._cached_token):
+            return False
+        if self._provider._fallback_token and not self._provider.is_jwt_expired(self._provider._fallback_token):
+            return False
+        return True
 
     async def get_leaderboard(self, limit: int = 20) -> list[Trader]:
-        if self.is_token_expired():
-            raise FomoTokenExpiredError("Privy token expired")
-
+        headers = await self._headers()
         url = f"{_BASE_URL}/v2/leaderboard?limit={limit}"
         try:
             async with httpx.AsyncClient(timeout=15) as client:
-                r = await client.get(url, headers=self._headers())
+                r = await client.get(url, headers=headers)
         except httpx.RequestError as exc:
             logger.error("fomo.leaderboard.request_error", extra={"error": str(exc)})
             return []
@@ -154,11 +221,10 @@ class FomoClient:
         return traders
 
     async def get_following(self) -> list[FollowedTrader]:
-        if self.is_token_expired():
-            raise FomoTokenExpiredError("Privy token expired")
+        headers = await self._headers()
         try:
             async with httpx.AsyncClient(timeout=15) as client:
-                r = await client.get(f"{_BASE_URL}/v2/leaderboard/following", headers=self._headers())
+                r = await client.get(f"{_BASE_URL}/v2/leaderboard/following", headers=headers)
         except httpx.RequestError as exc:
             logger.error("fomo.following.request_error", extra={"error": str(exc)})
             return []
@@ -186,13 +252,12 @@ class FomoClient:
         return result
 
     async def get_user_activity(self, user_id: str, limit: int = 10) -> list[TradeActivity]:
-        if self.is_token_expired():
-            raise FomoTokenExpiredError("Privy token expired")
+        headers = await self._headers()
         try:
             async with httpx.AsyncClient(timeout=15) as client:
                 r = await client.get(
                     f"{_BASE_URL}/v2/users/{user_id}/activity",
-                    headers=self._headers(),
+                    headers=headers,
                     params={"limit": limit},
                 )
         except httpx.RequestError as exc:
