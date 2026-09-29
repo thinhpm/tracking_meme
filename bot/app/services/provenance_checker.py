@@ -110,10 +110,10 @@ class ProvenanceChecker:
         top_funder, top_count = max(funder_counts.items(), key=lambda item: item[1])
         funder_share = top_count / k
 
-        is_sybil = funder_share >= self._threshold
+        is_sybil = top_count >= 2 and funder_share >= self._threshold
         return ProvenanceResult(
             is_sybil=is_sybil,
-            max_funder_share=funder_share,
+            max_funder_share=funder_share if top_count >= 2 else 0.0,
             common_funder=top_funder if is_sybil else None,
             funder_map=funder_map,
         )

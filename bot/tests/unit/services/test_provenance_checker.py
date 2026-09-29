@@ -62,7 +62,7 @@ async def test_cluster_independent_wallets_passes(mock_rpc_client, mock_db):
     result = await checker.check_cluster_provenance(["W1", "W2", "W3"])
 
     assert result.is_sybil is False
-    assert pytest.approx(result.max_funder_share, 0.01) == 0.33
+    assert result.max_funder_share == 0.0
     assert result.common_funder is None
 
 
