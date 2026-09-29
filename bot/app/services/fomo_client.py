@@ -68,6 +68,21 @@ class FollowedTrader(NamedTuple):
     followers: int
 
 
+class FollowedUser(NamedTuple):
+    id: str
+    address: str  # Solana address
+    evm_address: str  # EVM address
+    user_handle: str
+    display_name: str
+    followers: int
+    following: int
+    num_trades: int
+    total_volume: float
+    pnl24h: float
+    badge: str | None
+    profile_picture_link: str | None
+
+
 class FomoTokenExpiredError(Exception):
     pass
 
@@ -283,6 +298,60 @@ class FomoClient:
                     usd_amount=float(a.get("usdAmount") or 0),
                     trade_type=a.get("type", ""),
                     created_at=a.get("createdAt", ""),
+                )
+            )
+        return result
+
+    async def get_user_following_paginate(
+        self, user_id: str, page: int = 1, limit: int = 50
+    ) -> list[FollowedUser]:
+        headers = await self._headers()
+        url = f"{_BASE_URL}/v2/users/{user_id}/followingPaginate"
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                r = await client.get(
+                    url,
+                    headers=headers,
+                    params={"page": page, "limit": limit},
+                )
+        except httpx.RequestError as exc:
+            logger.error(
+                "fomo.following_paginate.request_error",
+                extra={"error": str(exc), "user_id": user_id},
+            )
+            return []
+
+        if r.status_code == 401:
+            raise FomoTokenExpiredError("API returned 401 unauthorized")
+        if r.status_code != 200:
+            logger.warning(
+                "fomo.following_paginate.bad_status",
+                extra={"status": r.status_code, "user_id": user_id},
+            )
+            return []
+
+        try:
+            raw_users = r.json().get("responseObject", {}).get("users", [])
+        except Exception:
+            logger.error("fomo.following_paginate.parse_error", extra={"user_id": user_id})
+            return []
+
+        result: list[FollowedUser] = []
+        for u in raw_users:
+            result.append(
+                FollowedUser(
+                    id=u.get("id", ""),
+                    address=u.get("address") or "",
+                    evm_address=u.get("evmAddress") or "",
+                    user_handle=u.get("userHandle") or "",
+                    display_name=u.get("displayName") or "",
+                    followers=int(u.get("followers") or 0),
+                    following=int(u.get("following") or 0),
+                    num_trades=int(u.get("numTrades") or 0),
+                    total_volume=float(u.get("totalVolume") or 0.0),
+                    pnl24h=float(u.get("pnl24h") or 0.0),
+                    badge=u.get("badge"),
+                    profile_picture_link=u.get("profilePictureLink"),
                 )
             )
         return result
