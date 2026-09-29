@@ -50,7 +50,7 @@
 
 ## Milestone 1: Database Foundation & MongoDB Integration
 
-- [ ] **Task 1.1**: Add MongoDB configuration variables
+- [x] **Task 1.1**: Add MongoDB configuration variables
   - **Files**:
     - `bot/app/config.py`
     - `bot/tests/unit/test_config.py`
@@ -65,7 +65,7 @@
   - **Acceptance Criteria**:
     - `Settings()` instantiates with sensible defaults and environment overrides. Tests pass.
 
-- [ ] **Task 1.2**: Implement Async MongoDB Connection Manager & Index Initializer
+- [x] **Task 1.2**: Implement Async MongoDB Connection Manager & Index Initializer
   - **Files**:
     - `bot/app/db/mongo.py`
     - `bot/tests/unit/db/test_mongo.py`
@@ -85,8 +85,8 @@
 ---
 
 ## Checkpoint 1: Database Ready
-- [ ] MongoDB connection and collections initialized.
-- [ ] Database unit tests pass (`pytest bot/tests/unit/db/test_mongo.py`).
+- [x] MongoDB connection and collections initialized.
+- [x] Database unit tests pass (`pytest bot/tests/unit/db/test_mongo.py`).
 
 ---
 
@@ -101,7 +101,7 @@
     - Automates headless login via Playwright to write fresh tokens to MongoDB `fomo_sessions`.
     - Will be implemented in a subsequent iteration once core radar pipeline is validated.
 
-- [ ] **Task 2.2**: Implement `FomoTokenProvider` (Interim: Env Token & MongoDB Cache)
+- [x] **Task 2.2**: Implement `FomoTokenProvider` (Interim: Env Token & MongoDB Cache)
   - **Files**:
     - `bot/app/services/fomo_client.py`
     - `bot/tests/unit/services/test_fomo_token_provider.py`
@@ -119,7 +119,7 @@
   - **Acceptance Criteria**:
     - Client transparently switches to active token. All existing tests pass. Coverage ≥ 90%.
 
-- [ ] **Task 2.3**: Token Health Monitor Job in Telegram Bot
+- [x] **Task 2.3**: Token Health Monitor Job in Telegram Bot
   - **Files**:
     - `bot/app/jobs/fomo_token_refresh.py`
     - `bot/tests/unit/jobs/test_fomo_token_refresh.py`
@@ -133,7 +133,7 @@
   - **Acceptance Criteria**:
     - Bot sends warning notification before token expires.
 
-- [ ] **Task 2.4**: Implement `get_user_following_paginate` in `FomoClient`
+- [x] **Task 2.4**: Implement `get_user_following_paginate` in `FomoClient`
   - **Files**:
     - `bot/app/services/fomo_client.py`
     - `bot/tests/unit/services/test_fomo_client.py`
@@ -153,16 +153,16 @@
 ---
 
 ## Checkpoint 2: Token Management & Client Resilient
-- [ ] `FomoTokenProvider` handles static env token and checks `exp` validity.
-- [ ] Expiry warning notifications active.
-- [ ] `get_user_following_paginate` tested and operational.
-- [ ] Downstream resolver can consume Fomo API without breaking.
+- [x] `FomoTokenProvider` handles static env token and checks `exp` validity.
+- [x] Expiry warning notifications active.
+- [x] `get_user_following_paginate` tested and operational.
+- [x] Downstream resolver can consume Fomo API without breaking.
 
 ---
 
 ## Milestone 3: Fomo-to-On-Chain Wallet Resolver & Roster Expansion
 
-- [ ] **Task 3.1**: Implement `WalletResolver` Service
+- [x] **Task 3.1**: Implement `WalletResolver` Service
   - **Files**:
     - `bot/app/services/wallet_resolver.py`
     - `bot/tests/unit/services/test_wallet_resolver.py`
@@ -179,7 +179,7 @@
   - **Acceptance Criteria**:
     - Resolver correctly unmasks execution wallets with $\ge 95\%$ confidence. Tests pass with coverage $\ge 85\%$.
 
-- [ ] **Task 3.2**: Social Graph Expansion & Smart Money Roster Crawler
+- [x] **Task 3.2**: Social Graph Expansion & Smart Money Roster Crawler
   - **Files**:
     - `bot/app/services/roster_crawler.py`
     - `bot/tests/unit/services/test_roster_crawler.py`
@@ -204,15 +204,15 @@
 ---
 
 ## Checkpoint 3: Wallet Resolver & Roster Expansion Functional
-- [ ] Resolver successfully identifies execution wallets from swap history.
-- [ ] Top trader following networks crawled and indexed in MongoDB `tracked_wallets`.
-- [ ] Tracked smart wallet pool expanded with peer endorsement metrics.
+- [x] Resolver successfully identifies execution wallets from swap history.
+- [x] Top trader following networks crawled and indexed in MongoDB `tracked_wallets`.
+- [x] Tracked smart wallet pool expanded with peer endorsement metrics.
 
 ---
 
 ## Milestone 4: Solana On-Chain Realtime Ingestion
 
-- [ ] **Task 4.1**: Implement Solana WebSocket Event Listener
+- [x] **Task 4.1**: Implement Solana WebSocket Event Listener
   - **Files**:
     - `bot/app/services/chain/solana_listener.py`
     - `bot/tests/unit/services/test_solana_listener.py`
@@ -233,14 +233,14 @@
 ---
 
 ## Checkpoint 4: Chain Listener Operational
-- [ ] WebSocket listens to Solana DEX swaps in real time.
-- [ ] Filter accurately flags swaps originating from tracked smart wallets.
+- [x] WebSocket listens to Solana DEX swaps in real time.
+- [x] Filter accurately flags swaps originating from tracked smart wallets.
 
 ---
 
 ## Milestone 5: Smart Money Consensus, Earlyness & Anti-Sybil
 
-- [ ] **Task 5.1**: Implement `ConsensusEngine` & Earlyness Decay
+- [x] **Task 5.1**: Implement `ConsensusEngine` & Earlyness Decay
   - **Files**:
     - `bot/app/services/consensus_engine.py`
     - `bot/tests/unit/services/test_consensus_engine.py`
@@ -257,7 +257,7 @@
   - **Acceptance Criteria**:
     - Quadratic conviction and earlyness decay match spec exactly. Tests pass.
 
-- [ ] **Task 5.2**: Implement `ProvenanceChecker` (Anti-Sybil / Crew Filter)
+- [x] **Task 5.2**: Implement `ProvenanceChecker` (Anti-Sybil / Crew Filter)
   - **Files**:
     - `bot/app/services/provenance_checker.py`
     - `bot/tests/unit/services/test_provenance_checker.py`
@@ -276,14 +276,14 @@
 ---
 
 ## Checkpoint 5: Signal Consensus & Anti-Sybil Validated
-- [ ] Consensus clusters accurately detected.
-- [ ] Seeded sybil crews successfully filtered out.
+- [x] Consensus clusters accurately detected.
+- [x] Seeded sybil crews successfully filtered out.
 
 ---
 
 ## Milestone 6: Hard Risk Gate & Composite Signal Scorer
 
-- [ ] **Task 6.1**: Implement `RiskGate`
+- [x] **Task 6.1**: Implement `RiskGate`
   - **Files**:
     - `bot/app/services/risk_gate.py`
     - `bot/tests/unit/services/test_risk_gate.py`
@@ -301,7 +301,7 @@
   - **Acceptance Criteria**:
     - All honeypot/scam tokens rejected. Tests pass with coverage $\ge 90\%$.
 
-- [ ] **Task 6.2**: Implement `SignalScorer`
+- [x] **Task 6.2**: Implement `SignalScorer`
   - **Files**:
     - `bot/app/services/signal_scorer.py`
     - `bot/tests/unit/services/test_signal_scorer.py`
@@ -321,14 +321,14 @@
 ---
 
 ## Checkpoint 6: Risk Filter & Scoring Verified
-- [ ] Risky/honeypot tokens hard-rejected.
-- [ ] Qualified tokens scored accurately and stored in MongoDB `token_signals`.
+- [x] Risky/honeypot tokens hard-rejected.
+- [x] Qualified tokens scored accurately and stored in MongoDB `token_signals`.
 
 ---
 
 ## Milestone 7: Mode 2 Telegram Alert Integration
 
-- [ ] **Task 7.1**: Implement `RadarAlertFormatter`
+- [x] **Task 7.1**: Implement `RadarAlertFormatter`
   - **Files**:
     - `bot/app/handlers/radar_alert.py`
     - `bot/tests/unit/handlers/test_radar_alert.py`
@@ -344,7 +344,7 @@
   - **Acceptance Criteria**:
     - Alert renders cleanly with zero parse errors.
 
-- [ ] **Task 7.2**: Connect Signal Pipeline to Telegram Dispatch Queue
+- [x] **Task 7.2**: Connect Signal Pipeline to Telegram Dispatch Queue
   - **Files**:
     - `bot/app/jobs/radar_alert_dispatcher.py`
     - `bot/tests/unit/jobs/test_radar_alert_dispatcher.py`
@@ -363,7 +363,7 @@
 
 ## Milestone 8: Final Checkpoint, E2E Simulation & Code Review
 
-- [ ] **Task 8.1**: End-to-End Simulation Test
+- [x] **Task 8.1**: End-to-End Simulation Test
   - **Files**:
     - `bot/tests/integration/test_radar_e2e.py`
   - **Details**:
@@ -375,11 +375,12 @@
     6. Assert `token_signals` document inserted in MongoDB.
     7. Assert Telegram alert is queued with matching token address.
 
-- [ ] **Task 8.2**: Mandatory Five-Axis Review (`.claude/rules/code-style.md`, `clean-code.md`, `security.md`)
+- [x] **Task 8.2**: Mandatory Five-Axis Review (`.claude/rules/code-style.md`, `clean-code.md`, `security.md`)
   - **Axes Verified**:
     1. **Correctness**: All unit & integration tests pass with $\ge 85\%$ coverage. No regressions.
     2. **Readability**: Type annotations, docstrings, clean function boundaries.
     3. **Architecture**: Clean layered architecture (DB → Services → Jobs → Handlers).
     4. **Security**: No secrets or private keys logged or committed; inputs validated.
     5. **Performance**: Async non-blocking I/O (`motor`, `websockets`, `httpx`). Fast memory lookups.
+
 
