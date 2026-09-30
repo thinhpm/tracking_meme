@@ -10,6 +10,32 @@ Format: [Semantic Versioning](https://semver.org/). Dates in `YYYY-MM-DD`.
 
 ---
 
+## [0.7.0] — 2026-09-30
+
+### Added — Early Token Sniper Consensus Radar & Real-Time Security
+
+- **Smart Money Consensus Radar Engine**
+  - **`ConsensusEngine`** (`bot/app/services/consensus_engine.py`): Phát hiện smart wallet cluster mua cùng token trong time window ngắn, tính toán composite confidence score.
+  - **`ProvenanceChecker`** (`bot/app/services/provenance_checker.py`): Kiểm tra quan hệ lịch sử ví (common funder / circular transfers) để loại bỏ hoàn toàn các cụm ví ảo (Sybil resistance).
+  - **`RiskGate`** (`bot/app/services/risk_gate.py`): Bộ lọc bảo mật 7 bước nghiêm ngặt: yêu cầu mint/freeze authority revoked, LP locked/burned $\ge 80\%$, top 10 holders $< 35\%$, sell tax $\le 15\%$, và pool silence honeypot check.
+  - **`RugCheckClient`** (`bot/app/services/rugcheck_client.py`): Service chuyên biệt tích hợp RugCheck API để lấy dữ liệu audit on-chain thực tế, tự động chuyển đổi thành `TokenAuditInput` cho `RiskGate`.
+  - **`SignalScorer`** (`bot/app/services/signal_scorer.py`): Chấm điểm tín hiệu radar composite kết hợp uy tín ví, volume, thanh khoản và loại bỏ hoàn toàn token chết (liquidity < $5k, volume 24h < $10k).
+  - **`RadarScanner`** (`bot/app/services/radar_scanner.py`): Quét candidate thực tế từ DexScreener và xác thực on-chain transactions qua Helius Solana RPC.
+  - **`RadarAlertDispatcher` & Formatter** (`bot/app/jobs/radar_alert_dispatcher.py`, `bot/app/handlers/radar_alert.py`): Tự động phát cảnh báo Telegram dạng rich alert với đầy đủ audit badge, breakdown smart money, và các link thao tác nhanh (GMGN, DexScreener, Photon, RugCheck).
+
+### Added — Fomo Token Auto-Refresh & Production Ready Setup
+
+- **Privy REST API Token Refresh** (`bot/app/services/fomo_client.py`, `bot/app/jobs/fomo_token_refresh.py`)
+  - Tự động gia hạn session token định kỳ qua Privy endpoint (`POST https://auth.privy.io/api/v1/sessions`).
+  - Lưu trữ session atomic xuống file và bộ nhớ đệm, tự động khôi phục khi bot restart mà không cần đăng nhập lại thủ công.
+- **Telegram Bot Commands Integration** (`bot/app/handlers/commands.py`, `bot/app/handlers/fomo.py`)
+  - Bổ sung lệnh `/radar`, `/radar scan` và nâng cấp `/fomo radar` quét tín hiệu on-chain trực tiếp.
+- **Infrastructure & Persistence** (`docker-compose.yml`, `bot/app/main.py`)
+  - Bổ sung MongoDB container với persistent volume cho production.
+  - Thiết lập tự động khởi tạo indexes và background jobs khi bot startup.
+
+---
+
 ## [0.6.0] — 2026-09-28
 
 ### Added — LLM Gemini Service Integration
@@ -155,7 +181,8 @@ Format: [Semantic Versioning](https://semver.org/). Dates in `YYYY-MM-DD`.
 
 ---
 
-[Unreleased]: https://github.com/tqhoa/bot-meme/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/tqhoa/bot-meme/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/tqhoa/bot-meme/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/tqhoa/bot-meme/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/tqhoa/bot-meme/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/tqhoa/bot-meme/compare/v0.3.0...v0.4.0

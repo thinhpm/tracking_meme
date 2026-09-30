@@ -18,6 +18,8 @@ services:
     env_file: .env
     environment:
       - API_BASE_URL=http://api:8000
+    volumes:
+      - ./data:/app/data
     depends_on:
       api:
         condition: service_healthy
@@ -67,6 +69,10 @@ services:
     dns:
       - 8.8.8.8
       - 1.1.1.1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/app/data
     depends_on:
       api-prod:
         condition: service_healthy
