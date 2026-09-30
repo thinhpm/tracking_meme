@@ -110,3 +110,44 @@ async def test_fomo_client_uses_token_provider():
 
     assert headers["Authorization"] == f"Bearer {valid_token}"
     assert headers["Origin"] == "https://fomo.family"
+
+
+@pytest.mark.asyncio
+async def test_token_provider_auto_refreshes_when_expired(tmp_path):
+    now = int(time.time())
+    expired_token = make_jwt(now - 100)
+    fresh_token = make_jwt(now + 3600)
+    fresh_pat = "new_privy_access_token"
+
+    session_file = tmp_path / "fomo_session.json"
+    mock_db = MagicMock()
+    mock_collection = MagicMock()
+    mock_collection.find_one = AsyncMock(return_value=None)
+    mock_collection.update_one = AsyncMock()
+    mock_db.__getitem__.return_value = mock_collection
+
+    provider = FomoTokenProvider(
+        db=mock_db,
+        session_file=str(session_file),
+        fallback_token=expired_token,
+        refresh_token="mock_refresh_token",
+        privy_access_token="old_privy_access_token",
+    )
+
+    with patch("httpx.AsyncClient.post") as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "token": fresh_token,
+            "privy_access_token": fresh_pat,
+            "refresh_token": None,
+        }
+        mock_post.return_value = mock_response
+
+        token = await provider.get_token()
+        assert token == fresh_token
+        assert provider._privy_access_token == fresh_pat
+        assert session_file.exists()
+        saved = json.loads(session_file.read_text(encoding="utf-8"))
+        assert saved["access_token"] == fresh_token
+        mock_collection.update_one.assert_called_once()

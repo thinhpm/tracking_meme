@@ -116,7 +116,7 @@ async def test_radar_pipeline_e2e_simulation():
     assert stored_signals[token_mint]["is_consensus"] is True
     # Conviction: 0.9^2 + 0.85^2 = 0.81 + 0.7225 = 1.5325 >= 1.3
     assert stored_signals[token_mint]["conviction"] > 1.5
-    assert stored_signals[token_mint]["earlyness"] == 1.0  # launched 45s ago <= 60s
+    assert pytest.approx(stored_signals[token_mint]["earlyness"], 0.02) == 0.99  # launched 45s ago
 
     # 5. Check Anti-Sybil Provenance
     mock_rpc = MagicMock()

@@ -10,12 +10,17 @@ from app.services.consensus_engine import (
 
 
 def test_compute_earlyness_factor():
-    assert compute_earlyness_factor(age_seconds=30) == 1.0      # <= 60s
-    assert compute_earlyness_factor(age_seconds=60) == 1.0
-    assert compute_earlyness_factor(age_seconds=300) == 0.5     # 5m <= 30m
-    assert compute_earlyness_factor(age_seconds=1800) == 0.5    # 30m
-    assert compute_earlyness_factor(age_seconds=7200) == 0.25   # 2h <= 10h
-    assert compute_earlyness_factor(age_seconds=40000) == 0.1   # > 10h
+    # 0s -> 1.0 / (1 + 0) = 1.0
+    assert pytest.approx(compute_earlyness_factor(age_seconds=0), 0.001) == 1.0
+    # 3600s (1h) -> 1.0 / (1 + 1) = 0.50
+    assert pytest.approx(compute_earlyness_factor(age_seconds=3600), 0.001) == 0.50
+    # 7200s (2h) -> 1.0 / (1 + 2) = 0.333
+    assert pytest.approx(compute_earlyness_factor(age_seconds=7200), 0.001) == 0.3333
+    # 36000s (10h) -> 1.0 / (1 + 10) = 0.0909
+    assert pytest.approx(compute_earlyness_factor(age_seconds=36000), 0.001) == 0.0909
+    # Undated (None) -> fallback to 0.50 (1 hour equivalent), never 1.0
+    assert pytest.approx(compute_earlyness_factor(age_seconds=None), 0.001) == 0.50
+
 
 
 @pytest.mark.asyncio
@@ -37,8 +42,8 @@ async def test_single_wallet_buy_no_consensus():
     assert signal.is_consensus is False
     assert len(signal.wallets) == 1
     assert pytest.approx(signal.conviction, 0.01) == 0.81  # 0.9^2
-    assert signal.earlyness == 1.0
-    assert pytest.approx(signal.heat, 0.01) == 0.81
+    assert pytest.approx(signal.earlyness, 0.01) == 0.992
+    assert pytest.approx(signal.heat, 0.01) == 0.803
 
 
 @pytest.mark.asyncio
@@ -75,8 +80,8 @@ async def test_two_wallets_trigger_consensus_cluster():
     assert signal.is_consensus is True
     assert set(signal.wallets) == {"W1", "W2"}
     assert pytest.approx(signal.conviction, 0.01) == 1.45
-    assert signal.earlyness == 1.0
-    assert pytest.approx(signal.heat, 0.01) == 1.45
+    assert pytest.approx(signal.earlyness, 0.01) == 0.986
+    assert pytest.approx(signal.heat, 0.01) == 1.43
 
     # Check MongoDB token_signals upsert
     mock_db["token_signals"].update_one.assert_called_once()

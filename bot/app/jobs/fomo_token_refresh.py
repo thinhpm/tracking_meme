@@ -29,7 +29,13 @@ def get_token_provider() -> FomoTokenProvider:
             db = get_db()
         except Exception:
             pass
-        _provider = FomoTokenProvider(db=db, fallback_token=settings.fomo_token)
+        _provider = FomoTokenProvider(
+            db=db,
+            session_file=settings.fomo_session_file,
+            fallback_token=settings.fomo_token,
+            refresh_token=settings.fomo_refresh_token,
+            privy_access_token=settings.fomo_privy_access_token,
+        )
     return _provider
 
 
@@ -78,6 +84,18 @@ async def fomo_token_monitor_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     status = health["status"]
 
     if status in ("expiring_soon", "expired"):
+        # 1. Proactively auto-refresh if provider supports it
+        if hasattr(provider, "refresh_session"):
+            try:
+                new_token = await provider.refresh_session()
+                if new_token:
+                    new_health = check_token_health(new_token)
+                    if new_health["status"] == "ok":
+                        logger.info("fomo.token_monitor: successfully auto-refreshed session token via Privy")
+                        return
+            except Exception as e:
+                logger.warning("fomo.token_monitor.auto_refresh_failed", extra={"error": str(e)})
+
         now = time.time()
         if now - _last_alert_sent < _ALERT_COOLDOWN_SECONDS:
             logger.info("fomo.token_monitor: alert suppressed due to cooldown")

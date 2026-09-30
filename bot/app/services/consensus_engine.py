@@ -9,16 +9,19 @@ from typing import Any, NamedTuple
 logger = logging.getLogger(__name__)
 
 
-def compute_earlyness_factor(age_seconds: float) -> float:
-    """Computes the earlyness decay multiplier based on token age at buy time."""
-    if age_seconds <= 60.0:
-        return 1.0
-    elif age_seconds <= 1800.0:  # <= 30m
-        return 0.5
-    elif age_seconds <= 36000.0:  # <= 10h
-        return 0.25
-    else:
-        return 0.1
+UNDATED_EARLINESS = 0.50  # Equivalent to 1 hour old; never 1.0
+
+
+def compute_earlyness_factor(age_seconds: float | None) -> float:
+    """Computes the earlyness decay multiplier based on token age at buy time.
+
+    Continuous smooth decay: 1.0 / (1.0 + age_seconds / 3600.0).
+    Undated pools fallback to 0.50 (1 hour equivalent), never 1.0.
+    """
+    if age_seconds is None:
+        return UNDATED_EARLINESS
+    return 1.0 / (1.0 + max(0.0, float(age_seconds)) / 3600.0)
+
 
 
 class WalletBuyEvent(NamedTuple):
@@ -89,13 +92,11 @@ class ConsensusEngine:
         is_consensus = len(unique_wallets) >= 2 and conviction >= self._min_conviction
 
         # Earlyness calculation
-        if event.launch_timestamp is not None:
-            age = max(0.0, event.timestamp - event.launch_timestamp)
-            earlyness = compute_earlyness_factor(age)
-        else:
-            earlyness = 1.0
+        age = (event.timestamp - event.launch_timestamp) if event.launch_timestamp is not None else None
+        earlyness = compute_earlyness_factor(age)
 
         heat = conviction * earlyness
+
 
         # Persist to database if consensus formed
         if is_consensus and self._db is not None:
@@ -105,6 +106,8 @@ class ConsensusEngine:
                     {
                         "$set": {
                             "token_mint": event.token_mint,
+                            "token_address": event.token_mint,
+                            "chain": "solana",
                             "wallets": unique_wallets,
                             "conviction": conviction,
                             "earlyness": earlyness,

@@ -10,3 +10,6 @@ htmlcov/
 *.egg-info/
 dist/
 .venv/
+bot/data/
+data/
+

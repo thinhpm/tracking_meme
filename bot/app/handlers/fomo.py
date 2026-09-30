@@ -60,12 +60,18 @@ async def fomo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             f"`/fomo on` — bật alert\n"
             f"`/fomo off` — tắt alert\n"
             f"`/fomo token <jwt>` — cập nhật token\n"
-            f"`/fomo top` — xem leaderboard ngay",
+            f"`/fomo top` — xem leaderboard ngay\n"
+            f"`/fomo watching` — xem following accounts\n"
+            f"`/fomo radar` — xem tín hiệu Smart Money on-chain (Consensus Radar)",
             parse_mode="Markdown",
         )
         return
 
     action = args[0].lower()
+
+    if action == "radar":
+        await radar_command(update, context)
+        return
 
     if action == "on":
         _subscribed_chats.add(chat_id)
@@ -177,5 +183,69 @@ async def fomo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     else:
         await update.message.reply_text(
-            "Cú pháp: `/fomo on|off|token|top|watching`", parse_mode="Markdown"
+            "Cú pháp: `/fomo on|off|token|top|watching|radar`", parse_mode="Markdown"
+        )
+
+
+async def radar_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Queries and displays recent Smart Money Consensus Radar signals from MongoDB or triggers a real on-chain scan."""
+    if not update.message:
+        return
+
+    from app.config import get_settings
+    from app.db.mongo import get_db
+    from app.handlers.radar_alert import RadarAlertFormatter
+    from app.services.radar_scanner import scan_and_generate_radar_signal
+
+    args = context.args or []
+    sub_args = [a.lower() for a in args if a.lower() != "radar"]
+    force_scan = "scan" in sub_args
+
+    db = None
+    try:
+        db = get_db()
+    except Exception as e:
+        logger.warning("fomo.radar_command.db_error", extra={"error": str(e)})
+
+    signals = []
+    if db is not None and not force_scan:
+        try:
+            signals = await db["token_signals"].find({}).sort("created_at", -1).to_list(length=3)
+        except Exception as e:
+            logger.warning("fomo.radar_command.query_error", extra={"error": str(e)})
+
+    # If force scan requested OR no signals exist in DB, execute Real On-Chain Scan
+    if force_scan or not signals:
+        status_msg = await update.message.reply_text(
+            "🔍 *Đang kích hoạt Real Scan on-chain qua Helius Solana RPC...*\n"
+            "• Quét DexScreener token boosts & lọc dead pool\n"
+            "• Phân tích on-chain smart money buyers & ví cá voi\n"
+            "• Kiểm tra Anti-Sybil & Security Audit\n"
+            "_Vui lòng đợi vài giây..._",
+            parse_mode="Markdown",
+        )
+        try:
+            settings = get_settings()
+            new_sig = await scan_and_generate_radar_signal(db=db, rpc_url=settings.solana_rpc_url)
+            signals = [new_sig]
+            try:
+                await status_msg.delete()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.exception("fomo.radar_command.scan_error")
+            await update.message.reply_text(f"❌ Quét on-chain thất bại: {e}")
+            return
+
+    await update.message.reply_text(
+        f"📡 *SMART MONEY CONSENSUS RADAR* (Top {len(signals)} tín hiệu gần nhất):\n"
+        f"_Gõ `/radar scan` hoặc `/fomo radar scan` để quét mới on-chain bất kỳ lúc nào._",
+        parse_mode="Markdown",
+    )
+    for sig in signals:
+        text, reply_markup = RadarAlertFormatter.format_alert(sig)
+        await update.message.reply_text(
+            text=text,
+            parse_mode="Markdown",
+            reply_markup=reply_markup,
         )

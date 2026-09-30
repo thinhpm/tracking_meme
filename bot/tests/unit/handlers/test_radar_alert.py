@@ -20,11 +20,11 @@ def test_format_radar_alert():
             {"handle": "alpha_trader", "score": 84, "amount_usd": 3200.0, "time_ago": "2m ago"},
         ],
         "security": {
-            "mint_auth": "Revoked ✅",
-            "freeze_auth": "Revoked ✅",
-            "lp_status": "100% Burned 🔥",
-            "top_10_share": "18.2% ✅",
-            "sell_tax": "0% Tax ✅",
+            "mint_auth": "Revoked",
+            "freeze_auth": "Revoked",
+            "lp_status": "100% Burned",
+            "top_10_share": "18.2%",
+            "sell_tax": "0% Tax",
         },
         "components": {
             "smart_money": 90.0,
@@ -38,7 +38,7 @@ def test_format_radar_alert():
     formatter = RadarAlertFormatter()
     text, reply_markup = formatter.format_alert(signal_doc)
 
-    assert "🚨 *SMART MONEY CONSENSUS DETECTED*" in text
+    assert "*SMART MONEY CONSENSUS DETECTED*" in text
     assert "Score: *86/100*" in text
     assert "PEPE2" in text
     assert "`7xKXtg2CW87d97TXJSDmbD5jBk4jhPmpump`" in text

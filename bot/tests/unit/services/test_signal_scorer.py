@@ -87,3 +87,45 @@ async def test_score_and_save_to_mongodb(mock_db):
     assert filter_arg == {"token_mint": "TokenToSave123"}
     assert update_arg["$set"]["score"] == 79
     assert update_arg["$set"]["tier"] == "WATCHLIST"
+
+
+def test_low_liquidity_capped_at_watchlist():
+    scorer = SignalScorer()
+    # High score components, but dried liquidity_depth = 0.02 ($2,000 pool)
+    snapshot = TokenSnapshot(
+        token_mint="DriedPoolMeme",
+        token_name="Curve Cat",
+        token_symbol="CURVECAT",
+        chain="solana",
+        risk_passed=True,
+        heat_normalized=1.0,        # 30
+        volume_acceleration=1.0,    # 25
+        security_rating=1.0,        # 20
+        liquidity_depth=0.02,       # Dried out! < 0.20
+        fomo_social_heat=1.0,       # 10
+        # Raw would be 30 + 25 + 20 + 0.3 + 10 = 85
+        wallets=["W1", "W2"],
+        conviction=2.0,
+        age_seconds=120,
+    )
+    scored = scorer.compute_score(snapshot)
+    # Must cap score to <= 65 and downgrade tier to WATCHLIST
+    assert scored.score <= 65
+    assert scored.tier == "WATCHLIST"
+
+
+def test_compute_dynamic_momentum():
+    from app.services.signal_scorer import compute_dynamic_momentum
+
+    # Case 1: Healthy buy ratio (80 buys, 20 sells) and +50% price change
+    # buy_ratio = 80 / 100 = 0.8; price_factor = 0.5 + 50/200 = 0.75
+    # accel = 0.6 * 0.8 + 0.4 * 0.75 = 0.48 + 0.30 = 0.78
+    accel = compute_dynamic_momentum(buys_h1=80, sells_h1=20, price_change_h1=50.0)
+    assert pytest.approx(accel, 0.01) == 0.78
+
+    # Case 2: Heavy dump (-90% crash, 5 buys, 95 sells)
+    # buy_ratio = 5 / 100 = 0.05; price_factor = max(0, 0.5 - 0.45) = 0.05
+    # accel = 0.6 * 0.05 + 0.4 * 0.05 = 0.05
+    accel_dump = compute_dynamic_momentum(buys_h1=5, sells_h1=95, price_change_h1=-90.0)
+    assert pytest.approx(accel_dump, 0.01) == 0.05
+

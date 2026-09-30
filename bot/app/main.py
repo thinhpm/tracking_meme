@@ -6,7 +6,7 @@ from telegram.request import HTTPXRequest
 from app.config import get_settings
 from app.handlers.alert import alert_command
 from app.handlers.commands import help_command, start
-from app.handlers.fomo import fomo_command
+from app.handlers.fomo import fomo_command, radar_command
 from app.handlers.message import handle_message
 from app.handlers.wallet import wallet_command
 from app.jobs.fomo_leaderboard_alert import fomo_leaderboard_alert_job
@@ -50,10 +50,10 @@ def main() -> None:
         .build()
     )
 
-    # Pre-load fomo client from env token if provided
-    if settings.fomo_token:
-        import app.handlers.fomo as _fomo_handler
-        _fomo_handler._fomo_client = FomoClient(settings.fomo_token)
+    # Pre-load fomo client using full token provider with auto-refresh support
+    from app.jobs.fomo_token_refresh import get_token_provider
+    import app.handlers.fomo as _fomo_handler
+    _fomo_handler._fomo_client = FomoClient(get_token_provider())
 
     # Pre-load zerion client
     if settings.zerion_api_key:
@@ -64,6 +64,7 @@ def main() -> None:
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("alert", alert_command))
     app.add_handler(CommandHandler("fomo", fomo_command))
+    app.add_handler(CommandHandler("radar", radar_command))
     app.add_handler(CommandHandler("wallet", wallet_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 

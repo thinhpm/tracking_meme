@@ -87,18 +87,61 @@ class FomoTokenExpiredError(Exception):
     pass
 
 
+_PRIVY_SESSIONS_URL = "https://auth.privy.io/api/v1/sessions"
+_PRIVY_APP_ID = "cm6h485o300n3zj9yl6vpedq7"
+_PRIVY_CA_ID = "2b6debb9-793e-4c4b-8f56-ae7a7eba47b2"
+_PRIVY_CLIENT = "react-auth:3.34.0"
+_PRIVY_CLIENT_ID = "client-WY5gFSayQjxnQhG4rP6SnwPAyPZWZpNRhJ6b9rzMnYwqH"
+
+
+def _update_env_file(updates: dict[str, str], env_paths: tuple[str, ...] = (".env", "../.env")) -> None:
+    import os
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return
+    for env_str in env_paths:
+        path = Path(env_str)
+        if path.is_file():
+            try:
+                content = path.read_text(encoding="utf-8")
+                lines = content.splitlines()
+                new_lines = []
+                updated_keys = set()
+                for line in lines:
+                    stripped = line.strip()
+                    matched = False
+                    for k, v in updates.items():
+                        if stripped.startswith(f"{k}="):
+                            new_lines.append(f"{k}={v}")
+                            updated_keys.add(k)
+                            matched = True
+                            break
+                    if not matched:
+                        new_lines.append(line)
+                for k, v in updates.items():
+                    if k not in updated_keys:
+                        new_lines.append(f"{k}={v}")
+                path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+                break
+            except Exception as e:
+                logger.warning("fomo.token_provider.update_env_error", extra={"error": str(e)})
+
+
 class FomoTokenProvider:
-    """Manages Fomo auth tokens with MongoDB cache, local file, and env fallback."""
+    """Manages Fomo auth tokens with Privy REST auto-refresh, MongoDB cache, local file, and env fallback."""
 
     def __init__(
         self,
         db: Any | None = None,
         session_file: str | None = None,
         fallback_token: str | None = None,
+        refresh_token: str | None = None,
+        privy_access_token: str | None = None,
     ) -> None:
         self._db = db
         self._session_file = session_file
         self._fallback_token = fallback_token
+        self._refresh_token = refresh_token
+        self._privy_access_token = privy_access_token
         self._cached_token: str | None = None
 
     @staticmethod
@@ -117,12 +160,146 @@ class FomoTokenProvider:
         except Exception:
             return True
 
+    async def _persist_session(
+        self,
+        token: str,
+        privy_access_token: str | None = None,
+        refresh_token: str | None = None,
+    ) -> None:
+        # 1. Persist to MongoDB
+        if self._db is not None:
+            try:
+                doc: dict[str, Any] = {
+                    "access_token": token,
+                    "status": "valid",
+                    "updated_at": int(time.time()),
+                }
+                if privy_access_token:
+                    doc["privy_access_token"] = privy_access_token
+                if refresh_token:
+                    doc["refresh_token"] = refresh_token
+
+                await self._db["fomo_sessions"].update_one(
+                    {"_id": "current"},
+                    {"$set": doc},
+                    upsert=True,
+                )
+            except Exception as e:
+                logger.warning("fomo.token_provider.persist_db_error", extra={"error": str(e)})
+
+        # 2. Persist to session file
+        if self._session_file:
+            try:
+                p = Path(self._session_file)
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(
+                    json.dumps(
+                        {
+                            "access_token": token,
+                            "privy_access_token": privy_access_token or self._privy_access_token,
+                            "refresh_token": refresh_token or self._refresh_token,
+                            "updated_at": int(time.time()),
+                        },
+                        indent=2,
+                    ),
+                    encoding="utf-8",
+                )
+            except Exception as e:
+                logger.warning("fomo.token_provider.persist_file_error", extra={"error": str(e)})
+
+        # 3. Update local .env file
+        env_updates = {"FOMO_PRIVY_TOKEN": token}
+        if privy_access_token:
+            env_updates["FOMO_PRIVY_ACCESS_TOKEN"] = privy_access_token
+        if refresh_token:
+            env_updates["FOMO_REFRESH_TOKEN"] = refresh_token
+        _update_env_file(env_updates)
+
+    async def refresh_session(self) -> str | None:
+        """Refreshes Privy session using the official Privy REST API endpoint."""
+        if not self._refresh_token:
+            logger.warning("fomo.token_provider.refresh_skipped: no refresh_token configured")
+            return None
+
+        bearer = self._privy_access_token or self._cached_token or self._fallback_token
+        if not bearer:
+            logger.warning("fomo.token_provider.refresh_skipped: no bearer access token for privy auth")
+            return None
+
+        headers = {
+            "accept": "application/json",
+            "accept-language": "en-US,en;q=0.9",
+            "authorization": f"Bearer {bearer}",
+            "content-type": "application/json",
+            "origin": "https://fomo.family",
+            "referer": "https://fomo.family/",
+            "privy-app-id": _PRIVY_APP_ID,
+            "privy-ca-id": _PRIVY_CA_ID,
+            "privy-client": _PRIVY_CLIENT,
+            "privy-client-id": _PRIVY_CLIENT_ID,
+            "user-agent": _USER_AGENT,
+        }
+        body = {"refresh_token": self._refresh_token}
+
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                res = await client.post(_PRIVY_SESSIONS_URL, headers=headers, json=body)
+        except Exception as e:
+            logger.error("fomo.token_provider.refresh_error", extra={"error": str(e)})
+            return None
+
+        if res.status_code != 200:
+            logger.warning(
+                "fomo.token_provider.refresh_failed",
+                extra={"status": res.status_code, "body": res.text[:200]},
+            )
+            return None
+
+        try:
+            data = res.json()
+        except Exception:
+            logger.error("fomo.token_provider.refresh_json_parse_error")
+            return None
+
+        new_token = data.get("token")
+        new_pat = data.get("privy_access_token")
+        new_rt = data.get("refresh_token")
+
+        if new_pat:
+            self._privy_access_token = new_pat
+        if new_rt:
+            self._refresh_token = new_rt
+
+        effective_token = new_token or self._cached_token or self._fallback_token
+        if new_token or (new_pat and effective_token):
+            self._cached_token = effective_token
+            if effective_token:
+                await self._persist_session(
+                    token=effective_token,
+                    privy_access_token=self._privy_access_token,
+                    refresh_token=self._refresh_token,
+                )
+            logger.info("fomo.token_provider.refresh_success: session refreshed")
+            return effective_token
+        elif self._cached_token and not self.is_jwt_expired(self._cached_token):
+            return self._cached_token
+
+        return None
+
     async def get_token(self) -> str:
+        # 0. In-memory cached token
+        if self._cached_token and not self.is_jwt_expired(self._cached_token):
+            return self._cached_token
+
         # 1. Check MongoDB
         if self._db is not None:
             try:
                 doc = await self._db["fomo_sessions"].find_one({"_id": "current"})
                 if doc:
+                    if doc.get("privy_access_token"):
+                        self._privy_access_token = doc.get("privy_access_token")
+                    if doc.get("refresh_token"):
+                        self._refresh_token = doc.get("refresh_token")
                     token = doc.get("access_token")
                     if token and not self.is_jwt_expired(token):
                         self._cached_token = token
@@ -136,6 +313,10 @@ class FomoTokenProvider:
             if path.exists() and path.is_file():
                 try:
                     data = json.loads(path.read_text(encoding="utf-8"))
+                    if data.get("privy_access_token"):
+                        self._privy_access_token = data.get("privy_access_token")
+                    if data.get("refresh_token"):
+                        self._refresh_token = data.get("refresh_token")
                     token = data.get("access_token") or data.get("token")
                     if token and not self.is_jwt_expired(token):
                         self._cached_token = token
@@ -147,6 +328,15 @@ class FomoTokenProvider:
         if self._fallback_token and not self.is_jwt_expired(self._fallback_token):
             self._cached_token = self._fallback_token
             return self._fallback_token
+
+        # 4. Attempt auto-refresh via Privy REST API
+        if self._refresh_token:
+            try:
+                new_token = await self.refresh_session()
+                if new_token:
+                    return new_token
+            except Exception as e:
+                logger.warning("fomo.token_provider.auto_refresh_error", extra={"error": str(e)})
 
         raise FomoTokenExpiredError(
             "No valid Fomo session token found (MongoDB, file, and env fallback all expired or missing)"

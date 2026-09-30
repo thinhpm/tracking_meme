@@ -8,6 +8,31 @@ from typing import Any, NamedTuple
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_DUST_FLOOR_USD = 10.0
+DEFAULT_DUST_RATIO = 0.05
+WAVE_MIN_WALLETS = 3
+WAVE_WINDOW_SECONDS = 86400.0  # 24 hours
+
+
+def is_dust_buy(usd_value: float, median_buy_usd: float | None = None) -> bool:
+    """Determines whether a buy fill is dust relative to absolute floor or wallet's median."""
+    median = median_buy_usd or 0.0
+    threshold = max(DEFAULT_DUST_FLOOR_USD, DEFAULT_DUST_RATIO * median)
+    return usd_value < threshold
+
+
+def classify_fill(
+    is_direct: bool = False,
+    usd_value: float = 0.0,
+    median_buy_usd: float | None = None,
+) -> str:
+    """Classifies a transaction fill as 'direct' (router injection), 'dust', or 'trade'."""
+    if is_direct:
+        return "direct"
+    if is_dust_buy(usd_value, median_buy_usd):
+        return "dust"
+    return "trade"
+
 
 class ProvenanceResult(NamedTuple):
     is_sybil: bool
@@ -17,7 +42,7 @@ class ProvenanceResult(NamedTuple):
 
 
 class ProvenanceChecker:
-    """Detects sybil crews by analyzing common parent funding wallets."""
+    """Detects sybil crews by analyzing common parent funding wallets and seeding waves."""
 
     def __init__(
         self,
@@ -29,6 +54,33 @@ class ProvenanceChecker:
         self._db = db
         self._threshold = max_funder_share_threshold
         self._memory_cache: dict[str, str] = {}
+        # token_mint -> list of (wallet, timestamp)
+        self._suspicious_fills: dict[str, list[tuple[str, float]]] = {}
+
+    def record_and_check_wave(
+        self,
+        token_mint: str,
+        wallet: str,
+        kind: str,
+        timestamp: float | None = None,
+    ) -> tuple[bool, str]:
+        """Tracks dust/direct fills for tokens. If >= 3 distinct wallets receive them in 24h, flags SEEDED_WAVE."""
+        now = timestamp or time.time()
+        if kind not in ("dust", "direct"):
+            return False, "CLEAN"
+
+        history = self._suspicious_fills.get(token_mint, [])
+        # Prune older than 24 hours
+        history = [entry for entry in history if (now - entry[1]) <= WAVE_WINDOW_SECONDS]
+        history.append((wallet, now))
+        self._suspicious_fills[token_mint] = history
+
+        distinct_wallets = {w for w, _ in history}
+        if len(distinct_wallets) >= WAVE_MIN_WALLETS:
+            return True, f"SEEDED_WAVE: {len(distinct_wallets)} smart wallets received dust/direct fills in 24h"
+
+        return False, "CLEAN"
+
 
     async def get_wallet_funder(self, wallet: str) -> str:
         """Determines the parent funding wallet, checking memory cache, DB, then RPC."""

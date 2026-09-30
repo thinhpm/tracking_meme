@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,7 +10,10 @@ class Settings(BaseSettings):
     telegram_bot_token: str
     api_base_url: str = "http://api:8000"
     log_level: str = "info"
-    fomo_token: str = ""
+    fomo_token: str = Field(default="", validation_alias=AliasChoices("fomo_token", "fomo_privy_token"))
+    fomo_refresh_token: str = ""
+    fomo_privy_access_token: str = ""
+    fomo_session_file: str = "data/fomo_session.json"
     zerion_api_key: str = ""
 
     # Database & Radar

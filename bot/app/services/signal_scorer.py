@@ -8,7 +8,18 @@ from typing import Any, NamedTuple
 logger = logging.getLogger(__name__)
 
 
+def compute_dynamic_momentum(buys_h1: int, sells_h1: int, price_change_h1: float) -> float:
+    """Computes dynamic momentum (0.0 to 1.0) combining buy pressure and price acceleration."""
+    total_tx = max(buys_h1 + sells_h1, 1)
+    buy_ratio = buys_h1 / total_tx
+    # price change factor: 0% -> 0.5; +100% -> 1.0; -100% -> 0.0
+    price_factor = max(0.0, min(1.0, 0.5 + (price_change_h1 / 200.0)))
+    acceleration = 0.6 * buy_ratio + 0.4 * price_factor
+    return max(0.0, min(1.0, acceleration))
+
+
 class TokenSnapshot(NamedTuple):
+
     token_mint: str
     token_name: str
     token_symbol: str
@@ -74,7 +85,11 @@ class SignalScorer:
         )
         final_score = max(0, min(100, int(raw_score)))
 
-        if final_score >= 80:
+        # Hard liquidity floor: dried pools cannot qualify as sniper-grade
+        if snapshot.liquidity_depth < 0.20:
+            final_score = min(final_score, 65)
+
+        if final_score >= 80 and snapshot.liquidity_depth >= 0.20:
             tier = "A_GRADE_SNIPER"
         elif final_score >= 60:
             tier = "WATCHLIST"
@@ -108,6 +123,7 @@ class SignalScorer:
                     {
                         "$set": {
                             "token_mint": snapshot.token_mint,
+                            "token_address": snapshot.token_mint,
                             "token_name": snapshot.token_name,
                             "token_symbol": snapshot.token_symbol,
                             "chain": snapshot.chain,
@@ -117,7 +133,7 @@ class SignalScorer:
                             "wallets": snapshot.wallets,
                             "conviction": snapshot.conviction,
                             "age_seconds": snapshot.age_seconds,
-                            "status": "qualified" if scored.score >= 80 else "research",
+                            "status": "qualified" if (scored.score >= 80 and scored.tier == "A_GRADE_SNIPER") else "research",
                             "updated_at": scored.timestamp,
                         },
                         "$setOnInsert": {
