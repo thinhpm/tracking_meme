@@ -9,3 +9,7 @@ __pycache__/
 htmlcov/
 *.egg-info/
 dist/
+.venv/
+bot/data/
+data/
+

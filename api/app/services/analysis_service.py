@@ -1,6 +1,15 @@
+from __future__ import annotations
+
 import json
+from typing import TYPE_CHECKING, Any
 
 import anthropic
+import structlog
+
+if TYPE_CHECKING:
+    from app.services.gemini_client import GeminiClient
+
+log = structlog.get_logger(__name__)
 
 _PROMPT_TEMPLATE = """Bạn là chuyên gia phân tích rủi ro token crypto. Phân tích dữ liệu sau và trả lời bằng JSON.
 
@@ -23,16 +32,28 @@ Trả về JSON với đúng cấu trúc sau (không có markdown, chỉ JSON th
 
 
 class AnalysisService:
-    def __init__(self, api_key: str) -> None:
-        self._client = anthropic.AsyncAnthropic(api_key=api_key)
+    def __init__(self, api_key: str = "", gemini_client: GeminiClient | None = None) -> None:
+        self._api_key = api_key.strip()
+        self._client: anthropic.AsyncAnthropic | None = (
+            anthropic.AsyncAnthropic(api_key=self._api_key) if self._api_key else None
+        )
+        self._gemini = gemini_client
 
     async def generate(self, market: dict, security: dict | None, social: dict) -> dict:
+        sec = security or {}
         try:
-            return await self._call_claude(market, security or {}, social)
-        except Exception:
-            return heuristic_analysis(market, security or {}, social)
+            if self._client:
+                return await self._call_claude(market, sec, social)
+            if self._gemini:
+                return await self._call_gemini(market, sec, social)
+            log.warning("no_llm_provider_configured_fallback_heuristic")
+            return heuristic_analysis(market, sec, social)
+        except Exception as e:
+            log.warning("llm_analysis_failed_fallback_heuristic", error=str(e))
+            return heuristic_analysis(market, sec, social)
 
     async def _call_claude(self, market: dict, security: dict, social: dict) -> dict:
+        assert self._client is not None
         prompt = _PROMPT_TEMPLATE.format(
             market_json=json.dumps(market, ensure_ascii=False),
             security_json=json.dumps(security, ensure_ascii=False),
@@ -45,6 +66,15 @@ class AnalysisService:
         )
         text = message.content[0].text.strip()  # type: ignore[index]
         return json.loads(text)
+
+    async def _call_gemini(self, market: dict, security: dict, social: dict) -> dict:
+        assert self._gemini is not None
+        prompt = _PROMPT_TEMPLATE.format(
+            market_json=json.dumps(market, ensure_ascii=False),
+            security_json=json.dumps(security, ensure_ascii=False),
+            social_json=json.dumps(social, ensure_ascii=False),
+        )
+        return await self._gemini.run_json(prompt)
 
 
 def heuristic_analysis(market: dict, security: dict, social: dict) -> dict:

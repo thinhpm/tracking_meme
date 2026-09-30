@@ -62,3 +62,50 @@ async def test_generate_falls_back_to_heuristic_on_api_error() -> None:
         result = await svc.generate(MARKET, SECURITY, SOCIAL)
     assert result["risk_level"] in ("LOW", "MEDIUM", "HIGH", "VERY_HIGH")
     assert isinstance(result["risk_flags"], list)
+
+
+async def test_generate_uses_claude_when_api_key_provided() -> None:
+    svc = AnalysisService(api_key="fake-key")
+    mock_result = {
+        "risk_flags": ["flag 1"],
+        "positive_flags": [],
+        "summary": "Claude summary",
+        "risk_level": "MEDIUM",
+    }
+    with patch.object(svc, "_call_claude", new=AsyncMock(return_value=mock_result)) as mock_claude:
+        res = await svc.generate(MARKET, SECURITY, SOCIAL)
+        assert res == mock_result
+        mock_claude.assert_awaited_once()
+
+
+async def test_generate_uses_gemini_when_api_key_empty() -> None:
+    mock_gemini = AsyncMock()
+    mock_result = {
+        "risk_flags": ["gemini risk"],
+        "positive_flags": ["gemini positive"],
+        "summary": "Gemini summary",
+        "risk_level": "LOW",
+    }
+    mock_gemini.run_json.return_value = mock_result
+    svc = AnalysisService(api_key="", gemini_client=mock_gemini)
+
+    res = await svc.generate(MARKET, SECURITY, SOCIAL)
+    assert res == mock_result
+    mock_gemini.run_json.assert_awaited_once()
+
+
+async def test_generate_gemini_failure_falls_back_to_heuristic() -> None:
+    mock_gemini = AsyncMock()
+    mock_gemini.run_json.side_effect = RuntimeError("Gateway timeout")
+    svc = AnalysisService(api_key="", gemini_client=mock_gemini)
+
+    res = await svc.generate(MARKET, SECURITY, SOCIAL)
+    assert res["risk_level"] in ("LOW", "MEDIUM", "HIGH", "VERY_HIGH")
+    assert isinstance(res["risk_flags"], list)
+
+
+async def test_generate_no_provider_configured_falls_back_to_heuristic() -> None:
+    svc = AnalysisService(api_key="", gemini_client=None)
+    res = await svc.generate(MARKET, SECURITY, SOCIAL)
+    assert res["risk_level"] in ("LOW", "MEDIUM", "HIGH", "VERY_HIGH")
+

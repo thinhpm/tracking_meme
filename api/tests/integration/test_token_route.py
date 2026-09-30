@@ -64,3 +64,36 @@ async def test_search_token_not_found_returns_404() -> None:
     body = response.json()
     assert body["success"] is False
     assert body["error"]["code"] == "TOKEN_NOT_FOUND"
+
+
+def test_build_service_uses_gemini_when_anthropic_key_empty() -> None:
+    from app.config import Settings
+    from app.routes.token import _build_service
+
+    dummy_settings = Settings(
+        anthropic_api_key="",
+        gemini_service_url="http://custom:8000",
+        gemini_service_provider="9router",
+        gemini_service_model="custom-model",
+    )
+    with patch("app.routes.token.get_settings", return_value=dummy_settings):
+        svc = _build_service()
+        assert svc._analysis._gemini is not None
+        assert svc._analysis._gemini.base_url == "http://custom:8000"
+        assert svc._analysis._gemini.provider == "9router"
+        assert svc._analysis._gemini.model == "custom-model"
+        assert svc._analysis._client is None
+
+
+def test_build_service_uses_anthropic_when_key_present() -> None:
+    from app.config import Settings
+    from app.routes.token import _build_service
+
+    dummy_settings = Settings(
+        anthropic_api_key="sk-ant-test-key",
+    )
+    with patch("app.routes.token.get_settings", return_value=dummy_settings):
+        svc = _build_service()
+        assert svc._analysis._gemini is None
+        assert svc._analysis._client is not None
+
